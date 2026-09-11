@@ -1,8 +1,7 @@
 <template>
-  <!-- 綁定動態主題變數 themeStyles -->
   <div class="app-layout" :style="themeStyles">
     <!-- ============================================== -->
-    <!-- 頂端 Header（含 RWD 漢堡按鈕） -->
+    <!-- 頂端 Header -->
     <!-- ============================================== -->
     <header class="main-header">
       <div class="nav-container">
@@ -33,7 +32,6 @@
         </nav>
       </div>
 
-      <!-- 手機端抽屜式選單 (Drawer) -->
       <div :class="['mobile-drawer', { open: mobileMenuOpen }]">
         <div class="drawer-header">
           <span>功能選單</span>
@@ -50,7 +48,7 @@
             📊 本月穿搭經濟報表
           </button>
           <button :class="['drawer-btn', { active: currentTab === 'perfumes' }]" @click="switchTab('perfumes')">
-            🌸 典藏香氛庫 ({{ perfumes.length }})
+            🌸 典藏香氛庫
           </button>
         </div>
       </div>
@@ -125,7 +123,7 @@
     </section>
 
     <!-- ============================================== -->
-    <!-- 分頁 2：數位衣櫥主畫面 (含多圖上傳與進階篩選) -->
+    <!-- 分頁 2：數位衣櫥主畫面 -->
     <!-- ============================================== -->
     <section v-if="currentTab === 'wardrobe'" class="view-panel">
       <div class="filter-bar">
@@ -176,8 +174,8 @@
 
             <div class="attribute-box">
               <p>🧵 <strong>材質：</strong>{{ item.material }}</p>
-              <p>🎨 <strong>顏色：</strong>{{ item.color }} ({{ item.style }})</p>
-              <p>💰 <strong>原價：</strong>NT$ {{ item.price.toLocaleString() }} · 穿 {{ item.wearCount }} 次</p>
+              <p>🎨 <strong>顏色：</strong>{{ item.color }}</p>
+              <p>💰 <strong>原價：</strong>NT$ {{ item.price ? item.price.toLocaleString() : 0 }} · 穿 {{ item.wearCount }} 次</p>
             </div>
 
             <div class="scent-advice">
@@ -239,7 +237,7 @@
     <section v-if="currentTab === 'perfumes'" class="view-panel">
       <div class="filter-bar">
         <input v-model="searchQuery" @input="fetchPerfumes" class="search-input" placeholder="🔍 搜尋香水名稱、品牌、香調..." />
-        <button class="primary-btn" @click="showPerfumeModal = true">＋ 匯入 1976 香水</button>
+        <button class="primary-btn" @click="showPerfumeModal = true">＋ 匯入香水</button>
       </div>
 
       <div class="cards-grid">
@@ -385,7 +383,6 @@ const filterUsage = ref('')
 
 const streakDays = ref(3)
 const showUploadModal = ref(false)
-const showPerfumeModal = ref(false)
 
 const isDragging = ref(false)
 const userUploadPreviews = ref([])
@@ -395,19 +392,17 @@ const editFormData = reactive({
   _id: null,
   name: '',
   category: '上衣',
-  brand: 'ZARA',
-  material: '純棉',
-  season: '春夏',
-  price: 1500,
-  style: '極簡俐落',
-  color: '米白',
-  occasion: '日常',
+  brand: '',
+  material: '',
+  season: '四季',
+  price: 0,
+  style: '',
+  color: '',
+  occasion: '',
   matchingPerfume: '',
-  webSearchImage: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=600&q=80'
+  webSearchImage: ''
 })
 
-// === 核心：動態色彩字典 ===
-// 將中文顏色名稱轉換為適合 UI 設計的主色與淺底色
 const getUIColor = (colorName) => {
   if (!colorName) return null;
   const name = colorName.toLowerCase();
@@ -418,13 +413,11 @@ const getUIColor = (colorName) => {
   if (name.includes('黃') || name.includes('棕') || name.includes('卡其') || name.includes('咖') || name.includes('土')) return { main: '#b45309', light: '#fef3c7' }; 
   if (name.includes('紫')) return { main: '#7c3aed', light: '#ede9fe' }; 
   if (name.includes('黑') || name.includes('灰')) return { main: '#475569', light: '#f1f5f9' }; 
-  if (name.includes('白') || name.includes('米')) return { main: '#94a3b8', light: '#f8fafc' }; 
-  return { main: '#0f766e', light: '#ccfbf1' }; // 預設深藍綠
+  if (name.includes('白') || name.includes('米') || name.includes('杏')) return { main: '#94a3b8', light: '#f8fafc' }; 
+  return { main: '#0f766e', light: '#ccfbf1' }; 
 };
 
-// === 動態主題綁定 ===
 const themeStyles = computed(() => {
-  // 系統預設主題
   const defaultTheme = {
     '--theme-primary': '#0f766e',
     '--theme-primary-light': '#ccfbf1',
@@ -436,7 +429,6 @@ const themeStyles = computed(() => {
     return defaultTheme
   }
 
-  // 根據前三名顏色計算對應的 UI 色彩
   const topColors = colorData.value.topThree.map(t => getUIColor(t.color))
   
   return {
@@ -472,6 +464,7 @@ const openUploadModal = () => {
   userUploadPreviews.value = []
   detectedItems.value = []
   editFormData.name = ''
+  editFormData.webSearchImage = ''
   showUploadModal.value = true
 }
 
@@ -483,9 +476,7 @@ const openEditModal = (item) => {
   editFormData.material = item.material
   editFormData.season = item.season
   editFormData.price = item.price
-  editFormData.style = item.style
   editFormData.color = item.color
-  editFormData.occasion = item.occasion
   editFormData.matchingPerfume = item.matchingPerfume
   editFormData.webSearchImage = item.webSearchImage
   userUploadPreviews.value = [item.webSearchImage]
@@ -497,7 +488,14 @@ const handleFiles = (files) => {
   const validFiles = Array.from(files).slice(0, 7)
   validFiles.forEach(file => {
     userUploadPreviews.value.push(URL.createObjectURL(file))
-    runAnalysis(file)
+    
+    // 使用 FileReader 轉為 base64 字串供儲存與後端辨識使用
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const base64Str = e.target.result
+      runAnalysis(file, base64Str)
+    }
+    reader.readAsDataURL(file)
   })
 }
 
@@ -512,7 +510,7 @@ const removeImage = (index) => {
   userUploadPreviews.value.splice(index, 1)
 }
 
-const runAnalysis = async (file) => {
+const runAnalysis = async (file, base64Str) => {
   editFormData.name = '🤖 AI 視覺正在批次辨識多件單品中...'
   const formData = new FormData()
   formData.append('image', file)
@@ -523,8 +521,15 @@ const runAnalysis = async (file) => {
     })
     
     if (res.data.success && res.data.items && res.data.items.length > 0) {
-      detectedItems.value = [...detectedItems.value, ...res.data.items]
-      fillFormWithItem(detectedItems.value[0])
+      // 為每個 AI 回傳的單品綁定剛才轉換的 Base64 圖片
+      const itemsWithImg = res.data.items.map(item => ({
+        ...item,
+        webSearchImage: base64Str 
+      }))
+      
+      detectedItems.value = [...detectedItems.value, ...itemsWithImg]
+      // 自動切換為最新的一筆
+      fillFormWithItem(detectedItems.value[detectedItems.value.length - itemsWithImg.length])
     } else if (detectedItems.value.length === 0) {
       editFormData.name = ''
     }
@@ -544,6 +549,8 @@ const fillFormWithItem = (data) => {
   editFormData.season = data.season || '四季'
   editFormData.price = data.price || 1500
   editFormData.brand = data.brand || 'ZARA'
+  editFormData.matchingPerfume = data.matchingPerfume || ''
+  editFormData.webSearchImage = data.webSearchImage || '' 
 }
 
 const logWear = async (id) => {
@@ -607,6 +614,7 @@ const saveClothing = async () => {
     } else {
       await axios.post(`${API_BASE}/api/clothes`, editFormData)
     }
+    alert('儲存成功！')
     showUploadModal.value = false
     fetchClothes()
     fetchAnalytics()
@@ -631,7 +639,6 @@ onMounted(() => {
   color: #1e293b;
 }
 
-/* ================== 頂端導航 ================== */
 .main-header {
   background: white;
   border-radius: 12px;
@@ -660,7 +667,6 @@ onMounted(() => {
   color: white;
 }
 
-/* 手機漢堡與抽屜 (保持不變) */
 .hamburger-btn { display: none; flex-direction: column; justify-content: space-around; width: 30px; height: 24px; background: transparent; border: none; cursor: pointer; padding: 0; }
 .hamburger-btn .bar { width: 100%; height: 3px; background: #0f172a; border-radius: 2px; }
 .mobile-drawer { position: fixed; top: 0; right: -280px; width: 260px; height: 100vh; background: white; box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15); z-index: 1000; transition: right 0.3s ease; padding: 20px; display: flex; flex-direction: column; }
@@ -672,7 +678,6 @@ onMounted(() => {
 .drawer-btn.active { background: var(--theme-primary); color: white; }
 .drawer-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); z-index: 999; }
 
-/* ================== 頂部快速摘要列 ================== */
 .summary-strip {
   background: white;
   border-radius: 10px;
@@ -707,7 +712,6 @@ onMounted(() => {
 }
 .streak-count { color: var(--theme-secondary); }
 
-/* ================== 色彩診斷 ================== */
 .analytics-card { background: white; border-radius: 14px; padding: 20px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); }
 .panel-title { font-size: 1.25rem; font-weight: 800; color: #0f172a; margin-bottom: 6px; }
 .panel-subtitle { font-size: 0.88rem; color: #64748b; margin-bottom: 16px; }
@@ -730,7 +734,6 @@ onMounted(() => {
 .advice-header { display: flex; align-items: center; gap: 8px; color: var(--theme-secondary); margin-bottom: 6px; }
 .advice-content { font-size: 0.92rem; line-height: 1.6; color: var(--theme-secondary); }
 
-/* ================== 衣櫥與卡片 ================== */
 .filter-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
 .advanced-filters { display: flex; gap: 8px; align-items: center; margin-bottom: 18px; background: var(--theme-bg-soft); padding: 10px; border-radius: 8px; }
 .filter-label { font-size: 0.85rem; font-weight: 700; color: #475569; }
@@ -763,7 +766,6 @@ onMounted(() => {
 .wear-btn { flex: 1; background: #0f172a; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 0.85rem; }
 .edit-btn { background: #e2e8f0; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
 
-/* ================== 彈窗多圖上傳 ================== */
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
 .modal-box { background: white; width: 92%; max-width: 580px; padding: 20px; border-radius: 12px; max-height: 90vh; overflow-y: auto; }
 
@@ -797,7 +799,6 @@ onMounted(() => {
 .cancel-btn { background: #e2e8f0; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; }
 .save-btn { background: var(--theme-primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; }
 
-/* ================== RWD ================== */
 @media (max-width: 768px) {
   .desktop-nav { display: none; }
   .hamburger-btn { display: flex; }
