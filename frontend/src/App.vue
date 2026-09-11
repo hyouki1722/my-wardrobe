@@ -10,14 +10,12 @@
           <p class="subtitle">色彩美學診斷 ✕ 穿搭經濟學 ✕ 精品香氛</p>
         </div>
 
-        <!-- 手機端漢堡選單按鈕 -->
         <button class="hamburger-btn" @click="mobileMenuOpen = !mobileMenuOpen" aria-label="選單">
           <span class="bar"></span>
           <span class="bar"></span>
           <span class="bar"></span>
         </button>
 
-        <!-- 電腦端導覽按鈕列 -->
         <nav class="desktop-nav">
           <button :class="['nav-link', { active: currentTab === 'wardrobe' }]" @click="currentTab = 'wardrobe'">
             👗 數位衣櫥 ({{ clothes.length }})
@@ -55,12 +53,11 @@
           </button>
         </div>
       </div>
-      <!-- 遮罩 -->
       <div v-if="mobileMenuOpen" class="drawer-overlay" @click="mobileMenuOpen = false"></div>
     </header>
 
     <!-- ============================================== -->
-    <!-- 頂端快速統計摘要列（所有分頁皆可看到） -->
+    <!-- 頂端快速統計與打卡紀錄 -->
     <!-- ============================================== -->
     <section class="summary-strip">
       <div class="strip-item">
@@ -77,13 +74,18 @@
         </div>
         <span v-else class="strip-sub">點擊查看色彩診斷</span>
       </div>
+      <div class="strip-divider"></div>
+      <div class="strip-item streak-info">
+        <span class="strip-label">你今天穿了什麼？</span>
+        <span class="strip-value streak-count" v-if="streakDays > 0">🔥 連續 {{ streakDays }} 天打卡！</span>
+        <span class="strip-value streak-count" v-else>💡 記錄今天的穿搭吧</span>
+      </div>
     </section>
 
     <!-- ============================================== -->
     <!-- 分頁 1：品項數量統計 ＆ 色彩診斷建議 -->
     <!-- ============================================== -->
     <section v-if="currentTab === 'analytics'" class="view-panel">
-      <!-- 1. 9大品項即時總數看板 -->
       <div class="analytics-card">
         <h3 class="panel-title">📦 各品項在庫總數統計</h3>
         <div class="category-stat-grid" v-if="colorData">
@@ -94,7 +96,6 @@
         </div>
       </div>
 
-      <!-- 2. 色彩佔比前三名與多樣化穿搭建議 -->
       <div class="analytics-card color-insight-card" v-if="colorData">
         <h3 class="panel-title">🎨 衣櫥色彩深度解析</h3>
         <p class="panel-subtitle">系統依據您目前的服裝色系，計算出核心主色調與前三名占比：</p>
@@ -123,9 +124,10 @@
     </section>
 
     <!-- ============================================== -->
-    <!-- 分頁 2：數位衣櫥主畫面 (支援 RWD 單欄切換) -->
+    <!-- 分頁 2：數位衣櫥主畫面 (含多圖上傳與進階篩選) -->
     <!-- ============================================== -->
     <section v-if="currentTab === 'wardrobe'" class="view-panel">
+      <!-- 分類與季節篩選 -->
       <div class="filter-bar">
         <div class="category-scroll-wrap">
           <button 
@@ -145,12 +147,20 @@
             <option value="秋冬">秋冬</option>
             <option value="四季">四季</option>
           </select>
-          <button class="primary-btn" @click="openUploadModal">📸 拍照上傳</button>
+          <button class="primary-btn" @click="openUploadModal">📸 拍照/批次上傳</button>
         </div>
       </div>
 
+      <!-- 進階使用狀態篩選 -->
+      <div class="advanced-filters">
+        <span class="filter-label">進階篩選：</span>
+        <button :class="['pill-btn', 'outline', { active: filterUsage === '' }]" @click="filterUsage = ''">不限</button>
+        <button :class="['pill-btn', 'outline', { active: filterUsage === 'haventWorn' }]" @click="filterUsage = 'haventWorn'">🚨 尚未穿過</button>
+        <button :class="['pill-btn', 'outline', { active: filterUsage === 'leastUsed' }]" @click="filterUsage = 'leastUsed'">❄️ 最少使用</button>
+      </div>
+
       <div class="cards-grid">
-        <div v-for="item in clothes" :key="item._id" class="cloth-card">
+        <div v-for="item in filteredClothes" :key="item._id" class="cloth-card">
           <div class="card-img-wrap">
             <img :src="item.webSearchImage || 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=600&q=80'" class="cloth-img" />
             <span class="badge-season" :class="item.season">{{ item.season }}</span>
@@ -252,42 +262,56 @@
     </section>
 
     <!-- ============================================== -->
-    <!-- 彈窗：拍照上傳並智慧解析 / 手動微調 -->
+    <!-- 彈窗：拍照多圖上傳並智慧解析 / 手動微調 -->
     <!-- ============================================== -->
     <div v-if="showUploadModal" class="modal-backdrop">
       <div class="modal-box">
-        <h2>📸 智慧辨識與電商圖比對</h2>
-        <div class="upload-dropzone" @click="$refs.cameraInput.click()">
-          <input type="file" ref="cameraInput" accept="image/*" @change="onFileSelected" style="display: none;" />
-          <div v-if="!userUploadPreview" class="empty-upload">
+        <h2>📸 智慧視覺辨識與單品拆解</h2>
+        
+        <!-- 支援拖曳與最高 7 張多圖上傳 -->
+        <div 
+          class="upload-dropzone" 
+          @click="$refs.cameraInput.click()"
+          @dragover.prevent="isDragging = true"
+          @dragleave.prevent="isDragging = false"
+          @drop.prevent="onFileDropped"
+          :class="{ 'drag-active': isDragging }"
+        >
+          <input type="file" ref="cameraInput" accept="image/*" multiple @change="onFileSelected" style="display: none;" />
+          
+          <div v-if="userUploadPreviews.length === 0" class="empty-upload">
             <span class="upload-icon">📷</span>
-            <p>點擊拍照或上傳衣服圖片</p>
+            <p>點擊、貼上或拖曳上傳照片（最高 7 張）</p>
           </div>
-          <div v-else class="preview-split">
-            <div class="split-col">
-              <small>原始照片</small>
-              <img :src="userUploadPreview" class="comp-img" />
-            </div>
-            <div class="arrow-sym">➔</div>
-            <div class="split-col">
-              <small>電商標準白底圖</small>
-              <img :src="editFormData.webSearchImage" class="comp-img result-img" />
+          
+          <div v-else class="preview-strip">
+            <div v-for="(img, idx) in userUploadPreviews" :key="idx" class="thumb-wrap">
+              <img :src="img" class="comp-img" />
+              <button @click.stop="removeImage(idx)" class="remove-btn" aria-label="移除圖片">✕</button>
             </div>
           </div>
         </div>
 
-        <div class="quick-chips">
-          <button type="button" @click="runAnalysis('西裝外套')">西裝外套</button>
-          <button type="button" @click="runAnalysis('碎花洋裝')">碎花洋裝</button>
-          <button type="button" @click="runAnalysis('純棉襯衫')">純棉襯衫</button>
-          <button type="button" @click="runAnalysis('瑪莉珍鞋')">瑪莉珍鞋</button>
-          <button type="button" @click="runAnalysis('珍珠項鍊')">珍珠飾品</button>
+        <!-- 動態顯示 AI 辨識出的多種單品清單 -->
+        <div class="quick-chips" v-if="detectedItems.length > 0">
+          <span style="font-size: 0.8rem; font-weight: bold; width: 100%; color: #0f766e;">
+            ✨ AI 共偵測到 {{ detectedItems.length }} 種單品，點擊下方切換檢視與儲存：
+          </span>
+          <button 
+            v-for="(item, index) in detectedItems" 
+            :key="index" 
+            type="button" 
+            @click="fillFormWithItem(item)"
+            style="background: #ccfbf1; border: 1px solid #0d9488; color: #0f766e; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer;"
+          >
+            📦 {{ item.name }} ({{ item.color }})
+          </button>
         </div>
 
         <div class="form-grid">
           <div class="form-group full-width">
             <label>服飾名稱：</label>
-            <input v-model="editFormData.name" />
+            <input v-model="editFormData.name" placeholder="尚未辨識或請手動輸入" />
           </div>
 
           <div class="form-group">
@@ -345,10 +369,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import axios from 'axios'
 
-// 設定環境變數動態網址，若無環境變數則預設使用 localhost 測試
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
 const currentTab = ref('wardrobe')
@@ -363,10 +386,16 @@ const categoryOptions = ['', '上衣', '下裝', '連身洋裝', '連身褲裝',
 const selectedCategory = ref('')
 const selectedSeason = ref('')
 const searchQuery = ref('')
+const filterUsage = ref('') // 進階篩選：'haventWorn' | 'leastUsed' | ''
 
+const streakDays = ref(3) // 模擬連續打卡天數
 const showUploadModal = ref(false)
 const showPerfumeModal = ref(false)
-const userUploadPreview = ref('')
+
+// 支援多圖預覽與拖曳狀態
+const isDragging = ref(false)
+const userUploadPreviews = ref([])
+const detectedItems = ref([])
 
 const editFormData = reactive({
   _id: null,
@@ -380,7 +409,7 @@ const editFormData = reactive({
   color: '米白',
   occasion: '日常',
   matchingPerfume: '',
-  webSearchImage: ''
+  webSearchImage: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=600&q=80'
 })
 
 const switchTab = (tab) => {
@@ -393,10 +422,22 @@ const calcCPW = (price, count) => {
   return Math.round(price / count)
 }
 
+// 計算屬性：負責處理「尚未穿過」與「最少使用」的前端即時過濾排序
+const filteredClothes = computed(() => {
+  let result = [...clothes.value]
+  if (filterUsage.value === 'haventWorn') {
+    result = result.filter(item => !item.wearCount || item.wearCount === 0)
+  } else if (filterUsage.value === 'leastUsed') {
+    result = result.sort((a, b) => (a.wearCount || 0) - (b.wearCount || 0))
+  }
+  return result
+})
+
 const openUploadModal = () => {
   editFormData._id = null
-  userUploadPreview.value = ''
-  runAnalysis('西裝外套')
+  userUploadPreviews.value = []
+  detectedItems.value = []
+  editFormData.name = ''
   showUploadModal.value = true
 }
 
@@ -413,42 +454,70 @@ const openEditModal = (item) => {
   editFormData.occasion = item.occasion
   editFormData.matchingPerfume = item.matchingPerfume
   editFormData.webSearchImage = item.webSearchImage
-  userUploadPreview.value = item.webSearchImage
+  userUploadPreviews.value = [item.webSearchImage]
+  detectedItems.value = []
   showUploadModal.value = true
 }
 
-const onFileSelected = (e) => {
-  const file = e.target.files[0]
-  if (!file) return
-  userUploadPreview.value = URL.createObjectURL(file)
-  runAnalysis(editFormData.name || '西裝外套')
+// 處理多檔案上傳，限制最高 7 張
+const handleFiles = (files) => {
+  const validFiles = Array.from(files).slice(0, 7)
+  validFiles.forEach(file => {
+    userUploadPreviews.value.push(URL.createObjectURL(file))
+    runAnalysis(file) // 每張圖片個別傳送給後端解析並彙整結果
+  })
 }
 
-const runAnalysis = async (keyword) => {
-  editFormData.name = keyword
+const onFileSelected = (e) => handleFiles(e.target.files)
+
+const onFileDropped = (e) => {
+  isDragging.value = false
+  handleFiles(e.dataTransfer.files)
+}
+
+const removeImage = (index) => {
+  userUploadPreviews.value.splice(index, 1)
+}
+
+const runAnalysis = async (file) => {
+  editFormData.name = '🤖 AI 視覺正在批次辨識多件單品中...'
+  const formData = new FormData()
+  formData.append('image', file)
+
   try {
-    const res = await axios.post(`${API_BASE}/api/clothes/smart-analyze`, { hint: keyword })
-    if (res.data.success) {
-      const data = res.data.analyzed
-      editFormData.name = data.name
-      editFormData.category = data.category
-      editFormData.brand = data.brand
-      editFormData.material = data.material
-      editFormData.season = data.season
-      editFormData.price = data.price
-      editFormData.style = data.style
-      editFormData.color = data.color
-      editFormData.matchingPerfume = data.matchingPerfume
-      editFormData.webSearchImage = data.webImage
+    const res = await axios.post(`${API_BASE}/api/clothes/smart-analyze`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    
+    if (res.data.success && res.data.items && res.data.items.length > 0) {
+      // 將新偵測到的單品附加到清單中，支援多圖合併結果
+      detectedItems.value = [...detectedItems.value, ...res.data.items]
+      fillFormWithItem(detectedItems.value[0])
+    } else if (detectedItems.value.length === 0) {
+      editFormData.name = ''
     }
   } catch (err) {
     console.error(err)
+    if (detectedItems.value.length === 0) {
+      editFormData.name = '辨識失敗，請手動輸入'
+    }
   }
+}
+
+const fillFormWithItem = (data) => {
+  editFormData.name = data.name || ''
+  editFormData.category = data.category || '上衣'
+  editFormData.color = data.color || ''
+  editFormData.material = data.material || ''
+  editFormData.season = data.season || '四季'
+  editFormData.price = data.price || 1500
+  editFormData.brand = data.brand || 'ZARA'
 }
 
 const logWear = async (id) => {
   try {
     await axios.post(`${API_BASE}/api/clothes/wear/${id}`)
+    streakDays.value += 1 // 更新打卡天數
     alert('🎉 今日穿搭打卡成功！單次成本已重新計算。')
     fetchClothes()
     fetchAnalytics()
@@ -506,6 +575,7 @@ const saveClothing = async () => {
     } else {
       await axios.post(`${API_BASE}/api/clothes`, editFormData)
     }
+    // 儲存後可選擇保留上傳視窗以繼續儲存其他拆解出來的單品，這裡預設關閉
     showUploadModal.value = false
     fetchClothes()
     fetchAnalytics()
@@ -557,7 +627,6 @@ onMounted(() => {
   margin-top: 2px;
 }
 
-/* 電腦端選單 */
 .desktop-nav {
   display: flex;
   gap: 8px;
@@ -580,7 +649,6 @@ onMounted(() => {
   color: white;
 }
 
-/* 手機漢堡按鈕 (預設隱藏) */
 .hamburger-btn {
   display: none;
   flex-direction: column;
@@ -600,7 +668,6 @@ onMounted(() => {
   border-radius: 2px;
 }
 
-/* 手機側邊抽屜式選單 */
 .mobile-drawer {
   position: fixed;
   top: 0;
@@ -678,6 +745,7 @@ onMounted(() => {
   gap: 16px;
   margin-bottom: 18px;
   border: 1px solid #e2e8f0;
+  flex-wrap: wrap;
 }
 
 .strip-item {
@@ -706,6 +774,7 @@ onMounted(() => {
 .color-preview {
   cursor: pointer;
   flex: 1;
+  min-width: 150px;
 }
 
 .top3-chips {
@@ -723,6 +792,16 @@ onMounted(() => {
   font-size: 0.75rem;
   font-weight: 700;
   color: #1e293b;
+}
+
+.streak-info {
+  background: #fffbeb;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #fde68a;
+}
+.streak-count {
+  color: #d97706;
 }
 
 /* ================== 色彩診斷與品項統計樣式 ================== */
@@ -861,7 +940,23 @@ onMounted(() => {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
+  margin-bottom: 12px;
+}
+
+.advanced-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   margin-bottom: 18px;
+  background: #f8fafc;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.filter-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #475569;
 }
 
 .category-scroll-wrap {
@@ -886,6 +981,12 @@ onMounted(() => {
   background: #0f766e;
   color: white;
   border-color: #0f766e;
+}
+
+.pill-btn.outline.active {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-color: #38bdf8;
 }
 
 .actions-row {
@@ -1035,7 +1136,7 @@ onMounted(() => {
   cursor: pointer;
 }
 
-/* ================== 彈窗上傳 ================== */
+/* ================== 彈窗多圖上傳 ================== */
 .modal-backdrop {
   position: fixed;
   inset: 0;
@@ -1059,43 +1160,60 @@ onMounted(() => {
 .upload-dropzone {
   border: 2px dashed #cbd5e1;
   border-radius: 8px;
-  padding: 12px;
+  padding: 16px;
   text-align: center;
   background: #f8fafc;
   margin-bottom: 12px;
   cursor: pointer;
+  transition: all 0.2s;
+}
+
+.upload-dropzone.drag-active {
+  background: #e0f2fe;
+  border-color: #0ea5e9;
 }
 
 .upload-icon { font-size: 2rem; }
 
-.preview-split {
+.preview-strip {
   display: flex;
-  align-items: center;
-  justify-content: space-around;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.thumb-wrap {
+  position: relative;
+  flex-shrink: 0;
 }
 
 .comp-img {
-  width: 90px;
-  height: 90px;
+  width: 80px;
+  height: 80px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
 }
 
-.result-img { border: 2px solid #0f766e; }
+.remove-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
 
 .quick-chips {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   margin-bottom: 14px;
-}
-.quick-chips button {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 0.75rem;
-  cursor: pointer;
 }
 
 .form-grid {
