@@ -37,7 +37,7 @@ app.post('/api/clothes/smart-analyze', upload.single('image'), async (req, res) 
 
     console.log("✅ 圖片接收成功，準備呼叫 Gemini 模型...");
     // 這裡使用 flash 模型以確保速度與視覺辨識能力
-    const model = genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     
     const prompt = `你是一位專業的服裝鑑定師。請分析這張照片中人物身上所有的衣著單品。
     請以 JSON 陣列格式回傳，找出最明顯的 1~3 件單品。
