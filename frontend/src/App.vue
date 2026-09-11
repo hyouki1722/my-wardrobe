@@ -1,5 +1,6 @@
 <template>
-  <div class="app-layout">
+  <!-- 綁定動態主題變數 themeStyles -->
+  <div class="app-layout" :style="themeStyles">
     <!-- ============================================== -->
     <!-- 頂端 Header（含 RWD 漢堡按鈕） -->
     <!-- ============================================== -->
@@ -127,7 +128,6 @@
     <!-- 分頁 2：數位衣櫥主畫面 (含多圖上傳與進階篩選) -->
     <!-- ============================================== -->
     <section v-if="currentTab === 'wardrobe'" class="view-panel">
-      <!-- 分類與季節篩選 -->
       <div class="filter-bar">
         <div class="category-scroll-wrap">
           <button 
@@ -151,7 +151,6 @@
         </div>
       </div>
 
-      <!-- 進階使用狀態篩選 -->
       <div class="advanced-filters">
         <span class="filter-label">進階篩選：</span>
         <button :class="['pill-btn', 'outline', { active: filterUsage === '' }]" @click="filterUsage = ''">不限</button>
@@ -268,7 +267,6 @@
       <div class="modal-box">
         <h2>📸 智慧視覺辨識與單品拆解</h2>
         
-        <!-- 支援拖曳與最高 7 張多圖上傳 -->
         <div 
           class="upload-dropzone" 
           @click="$refs.cameraInput.click()"
@@ -292,17 +290,14 @@
           </div>
         </div>
 
-        <!-- 動態顯示 AI 辨識出的多種單品清單 -->
         <div class="quick-chips" v-if="detectedItems.length > 0">
-          <span style="font-size: 0.8rem; font-weight: bold; width: 100%; color: #0f766e;">
-            ✨ AI 共偵測到 {{ detectedItems.length }} 種單品，點擊下方切換檢視與儲存：
-          </span>
+          <span class="chips-hint">✨ AI 共偵測到 {{ detectedItems.length }} 種單品，點擊下方切換檢視與儲存：</span>
           <button 
             v-for="(item, index) in detectedItems" 
             :key="index" 
             type="button" 
             @click="fillFormWithItem(item)"
-            style="background: #ccfbf1; border: 1px solid #0d9488; color: #0f766e; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer;"
+            class="ai-chip-btn"
           >
             📦 {{ item.name }} ({{ item.color }})
           </button>
@@ -386,13 +381,12 @@ const categoryOptions = ['', '上衣', '下裝', '連身洋裝', '連身褲裝',
 const selectedCategory = ref('')
 const selectedSeason = ref('')
 const searchQuery = ref('')
-const filterUsage = ref('') // 進階篩選：'haventWorn' | 'leastUsed' | ''
+const filterUsage = ref('')
 
-const streakDays = ref(3) // 模擬連續打卡天數
+const streakDays = ref(3)
 const showUploadModal = ref(false)
 const showPerfumeModal = ref(false)
 
-// 支援多圖預覽與拖曳狀態
 const isDragging = ref(false)
 const userUploadPreviews = ref([])
 const detectedItems = ref([])
@@ -412,6 +406,47 @@ const editFormData = reactive({
   webSearchImage: 'https://images.unsplash.com/photo-1489987707025-afc232f7ea0f?auto=format&fit=crop&w=600&q=80'
 })
 
+// === 核心：動態色彩字典 ===
+// 將中文顏色名稱轉換為適合 UI 設計的主色與淺底色
+const getUIColor = (colorName) => {
+  if (!colorName) return null;
+  const name = colorName.toLowerCase();
+  if (name.includes('藍') || name.includes('單寧') || name.includes('牛仔')) return { main: '#0284c7', light: '#e0f2fe' }; 
+  if (name.includes('綠')) return { main: '#059669', light: '#d1fae5' }; 
+  if (name.includes('紅') || name.includes('酒')) return { main: '#e11d48', light: '#ffe4e6' }; 
+  if (name.includes('粉')) return { main: '#db2777', light: '#fce7f3' }; 
+  if (name.includes('黃') || name.includes('棕') || name.includes('卡其') || name.includes('咖') || name.includes('土')) return { main: '#b45309', light: '#fef3c7' }; 
+  if (name.includes('紫')) return { main: '#7c3aed', light: '#ede9fe' }; 
+  if (name.includes('黑') || name.includes('灰')) return { main: '#475569', light: '#f1f5f9' }; 
+  if (name.includes('白') || name.includes('米')) return { main: '#94a3b8', light: '#f8fafc' }; 
+  return { main: '#0f766e', light: '#ccfbf1' }; // 預設深藍綠
+};
+
+// === 動態主題綁定 ===
+const themeStyles = computed(() => {
+  // 系統預設主題
+  const defaultTheme = {
+    '--theme-primary': '#0f766e',
+    '--theme-primary-light': '#ccfbf1',
+    '--theme-secondary': '#0d9488',
+    '--theme-bg-soft': '#f0fdfa'
+  }
+
+  if (!colorData.value || !colorData.value.topThree || colorData.value.topThree.length === 0) {
+    return defaultTheme
+  }
+
+  // 根據前三名顏色計算對應的 UI 色彩
+  const topColors = colorData.value.topThree.map(t => getUIColor(t.color))
+  
+  return {
+    '--theme-primary': topColors[0]?.main || '#0f766e',
+    '--theme-primary-light': topColors[0]?.light || '#ccfbf1',
+    '--theme-secondary': topColors[1]?.main || '#475569',
+    '--theme-bg-soft': topColors[2]?.light || topColors[0]?.light || '#f8fafc'
+  }
+})
+
 const switchTab = (tab) => {
   currentTab.value = tab
   mobileMenuOpen.value = false
@@ -422,7 +457,6 @@ const calcCPW = (price, count) => {
   return Math.round(price / count)
 }
 
-// 計算屬性：負責處理「尚未穿過」與「最少使用」的前端即時過濾排序
 const filteredClothes = computed(() => {
   let result = [...clothes.value]
   if (filterUsage.value === 'haventWorn') {
@@ -459,12 +493,11 @@ const openEditModal = (item) => {
   showUploadModal.value = true
 }
 
-// 處理多檔案上傳，限制最高 7 張
 const handleFiles = (files) => {
   const validFiles = Array.from(files).slice(0, 7)
   validFiles.forEach(file => {
     userUploadPreviews.value.push(URL.createObjectURL(file))
-    runAnalysis(file) // 每張圖片個別傳送給後端解析並彙整結果
+    runAnalysis(file)
   })
 }
 
@@ -490,7 +523,6 @@ const runAnalysis = async (file) => {
     })
     
     if (res.data.success && res.data.items && res.data.items.length > 0) {
-      // 將新偵測到的單品附加到清單中，支援多圖合併結果
       detectedItems.value = [...detectedItems.value, ...res.data.items]
       fillFormWithItem(detectedItems.value[0])
     } else if (detectedItems.value.length === 0) {
@@ -517,7 +549,7 @@ const fillFormWithItem = (data) => {
 const logWear = async (id) => {
   try {
     await axios.post(`${API_BASE}/api/clothes/wear/${id}`)
-    streakDays.value += 1 // 更新打卡天數
+    streakDays.value += 1
     alert('🎉 今日穿搭打卡成功！單次成本已重新計算。')
     fetchClothes()
     fetchAnalytics()
@@ -575,7 +607,6 @@ const saveClothing = async () => {
     } else {
       await axios.post(`${API_BASE}/api/clothes`, editFormData)
     }
-    // 儲存後可選擇保留上傳視窗以繼續儲存其他拆解出來的單品，這裡預設關閉
     showUploadModal.value = false
     fetchClothes()
     fetchAnalytics()
@@ -600,7 +631,7 @@ onMounted(() => {
   color: #1e293b;
 }
 
-/* ================== 頂端導航與手機漢堡選單 ================== */
+/* ================== 頂端導航 ================== */
 .main-header {
   background: white;
   border-radius: 12px;
@@ -608,30 +639,11 @@ onMounted(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   margin-bottom: 14px;
 }
+.nav-container { display: flex; justify-content: space-between; align-items: center; }
+.logo-area h1 { font-size: 1.5rem; font-weight: 800; color: #0f172a; }
+.subtitle { font-size: 0.82rem; color: #64748b; margin-top: 2px; }
 
-.nav-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.logo-area h1 {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.subtitle {
-  font-size: 0.82rem;
-  color: #64748b;
-  margin-top: 2px;
-}
-
-.desktop-nav {
-  display: flex;
-  gap: 8px;
-}
-
+.desktop-nav { display: flex; gap: 8px; }
 .nav-link {
   border: none;
   background: transparent;
@@ -643,97 +655,22 @@ onMounted(() => {
   font-size: 0.9rem;
   transition: all 0.2s;
 }
-
 .nav-link.active, .nav-link:hover {
-  background: #0f766e;
+  background: var(--theme-primary);
   color: white;
 }
 
-.hamburger-btn {
-  display: none;
-  flex-direction: column;
-  justify-content: space-around;
-  width: 30px;
-  height: 24px;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 0;
-}
-
-.hamburger-btn .bar {
-  width: 100%;
-  height: 3px;
-  background: #0f172a;
-  border-radius: 2px;
-}
-
-.mobile-drawer {
-  position: fixed;
-  top: 0;
-  right: -280px;
-  width: 260px;
-  height: 100vh;
-  background: white;
-  box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
-  transition: right 0.3s ease;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-}
-
-.mobile-drawer.open {
-  right: 0;
-}
-
-.drawer-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 1.1rem;
-  font-weight: 800;
-  margin-bottom: 20px;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 10px;
-}
-
-.close-drawer {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
-}
-
-.drawer-links {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.drawer-btn {
-  text-align: left;
-  border: none;
-  background: #f8fafc;
-  padding: 12px 14px;
-  border-radius: 8px;
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #334155;
-  cursor: pointer;
-}
-
-.drawer-btn.active {
-  background: #0f766e;
-  color: white;
-}
-
-.drawer-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  z-index: 999;
-}
+/* 手機漢堡與抽屜 (保持不變) */
+.hamburger-btn { display: none; flex-direction: column; justify-content: space-around; width: 30px; height: 24px; background: transparent; border: none; cursor: pointer; padding: 0; }
+.hamburger-btn .bar { width: 100%; height: 3px; background: #0f172a; border-radius: 2px; }
+.mobile-drawer { position: fixed; top: 0; right: -280px; width: 260px; height: 100vh; background: white; box-shadow: -4px 0 16px rgba(0, 0, 0, 0.15); z-index: 1000; transition: right 0.3s ease; padding: 20px; display: flex; flex-direction: column; }
+.mobile-drawer.open { right: 0; }
+.drawer-header { display: flex; justify-content: space-between; align-items: center; font-size: 1.1rem; font-weight: 800; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
+.close-drawer { background: none; border: none; font-size: 1.2rem; cursor: pointer; }
+.drawer-links { display: flex; flex-direction: column; gap: 12px; }
+.drawer-btn { text-align: left; border: none; background: #f8fafc; padding: 12px 14px; border-radius: 8px; font-size: 0.92rem; font-weight: 700; color: #334155; cursor: pointer; }
+.drawer-btn.active { background: var(--theme-primary); color: white; }
+.drawer-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); z-index: 999; }
 
 /* ================== 頂部快速摘要列 ================== */
 .summary-strip {
@@ -747,558 +684,128 @@ onMounted(() => {
   border: 1px solid #e2e8f0;
   flex-wrap: wrap;
 }
-
-.strip-item {
-  display: flex;
-  flex-direction: column;
-}
-
-.strip-label {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #64748b;
-}
-
-.strip-value {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: #0f766e;
-}
-
-.strip-divider {
-  width: 1px;
-  height: 28px;
-  background: #e2e8f0;
-}
-
-.color-preview {
-  cursor: pointer;
-  flex: 1;
-  min-width: 150px;
-}
-
-.top3-chips {
-  display: flex;
-  gap: 6px;
-  margin-top: 2px;
-  flex-wrap: wrap;
-}
-
+.strip-item { display: flex; flex-direction: column; }
+.strip-label { font-size: 0.72rem; font-weight: 700; color: #64748b; }
+.strip-value { font-size: 1.1rem; font-weight: 800; color: var(--theme-primary); }
+.strip-divider { width: 1px; height: 28px; background: #e2e8f0; }
+.color-preview { cursor: pointer; flex: 1; min-width: 150px; }
+.top3-chips { display: flex; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
 .mini-chip {
-  background: #f1f5f9;
-  border: 1px solid #cbd5e1;
+  background: var(--theme-bg-soft);
+  border: 1px solid var(--theme-primary-light);
+  color: var(--theme-primary);
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #1e293b;
 }
-
 .streak-info {
-  background: #fffbeb;
+  background: var(--theme-bg-soft);
   padding: 6px 12px;
   border-radius: 8px;
-  border: 1px solid #fde68a;
+  border: 1px solid var(--theme-primary-light);
 }
-.streak-count {
-  color: #d97706;
-}
+.streak-count { color: var(--theme-secondary); }
 
-/* ================== 色彩診斷與品項統計樣式 ================== */
-.analytics-card {
-  background: white;
-  border-radius: 14px;
-  padding: 20px;
-  border: 1px solid #e2e8f0;
-  margin-bottom: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
+/* ================== 色彩診斷 ================== */
+.analytics-card { background: white; border-radius: 14px; padding: 20px; border: 1px solid #e2e8f0; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); }
+.panel-title { font-size: 1.25rem; font-weight: 800; color: #0f172a; margin-bottom: 6px; }
+.panel-subtitle { font-size: 0.88rem; color: #64748b; margin-bottom: 16px; }
+.category-stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+.cat-stat-box { background: var(--theme-bg-soft); border: 1px solid var(--theme-primary-light); border-radius: 8px; padding: 10px; text-align: center; }
+.cat-name { display: block; font-size: 0.78rem; color: #475569; font-weight: 600; }
+.cat-count { font-size: 1.25rem; font-weight: 800; color: var(--theme-primary); }
+.cat-count small { font-size: 0.75rem; }
 
-.panel-title {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: #0f172a;
-  margin-bottom: 6px;
-}
+.top3-ranking { display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px; }
+.rank-item { display: flex; align-items: center; gap: 14px; background: #f8fafc; padding: 12px 16px; border-radius: 10px; }
+.rank-badge { background: var(--theme-primary); color: white; font-size: 0.8rem; font-weight: 800; padding: 6px 10px; border-radius: 6px; }
+.rank-details { flex: 1; }
+.rank-details h4 { font-size: 0.95rem; color: #0f172a; }
+.rank-details p { font-size: 0.8rem; color: #64748b; margin: 2px 0 6px 0; }
+.progress-bg { width: 100%; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--theme-primary); border-radius: 3px; }
 
-.panel-subtitle {
-  font-size: 0.88rem;
-  color: #64748b;
-  margin-bottom: 16px;
-}
-
-.category-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 10px;
-}
-
-.cat-stat-box {
-  background: #f8fafc;
-  border: 1px solid #f1f5f9;
-  border-radius: 8px;
-  padding: 10px;
-  text-align: center;
-}
-
-.cat-name {
-  display: block;
-  font-size: 0.78rem;
-  color: #475569;
-  font-weight: 600;
-}
-
-.cat-count {
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: #0f766e;
-}
-
-.cat-count small {
-  font-size: 0.75rem;
-}
-
-.top3-ranking {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  margin-bottom: 20px;
-}
-
-.rank-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  background: #f8fafc;
-  padding: 12px 16px;
-  border-radius: 10px;
-}
-
-.rank-badge {
-  background: #0f766e;
-  color: white;
-  font-size: 0.8rem;
-  font-weight: 800;
-  padding: 6px 10px;
-  border-radius: 6px;
-}
-
-.rank-details {
-  flex: 1;
-}
-
-.rank-details h4 {
-  font-size: 0.95rem;
-  color: #0f172a;
-}
-
-.rank-details p {
-  font-size: 0.8rem;
-  color: #64748b;
-  margin: 2px 0 6px 0;
-}
-
-.progress-bg {
-  width: 100%;
-  height: 6px;
-  background: #e2e8f0;
-  border-radius: 3px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: #0f766e;
-  border-radius: 3px;
-}
-
-.color-advice-box {
-  background: #eff6ff;
-  border: 1px solid #dbeafe;
-  border-radius: 10px;
-  padding: 16px;
-}
-
-.advice-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #1e40af;
-  margin-bottom: 6px;
-}
-
-.advice-content {
-  font-size: 0.92rem;
-  line-height: 1.6;
-  color: #1e3a8a;
-}
+.color-advice-box { background: var(--theme-bg-soft); border: 1px solid var(--theme-primary-light); border-radius: 10px; padding: 16px; }
+.advice-header { display: flex; align-items: center; gap: 8px; color: var(--theme-secondary); margin-bottom: 6px; }
+.advice-content { font-size: 0.92rem; line-height: 1.6; color: var(--theme-secondary); }
 
 /* ================== 衣櫥與卡片 ================== */
-.filter-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 12px;
-}
+.filter-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+.advanced-filters { display: flex; gap: 8px; align-items: center; margin-bottom: 18px; background: var(--theme-bg-soft); padding: 10px; border-radius: 8px; }
+.filter-label { font-size: 0.85rem; font-weight: 700; color: #475569; }
+.category-scroll-wrap { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.pill-btn { border: 1px solid #cbd5e1; background: white; padding: 6px 12px; border-radius: 18px; font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.pill-btn.active { background: var(--theme-primary); color: white; border-color: var(--theme-primary); }
+.pill-btn.outline.active { background: var(--theme-primary-light); color: var(--theme-primary); border-color: var(--theme-primary); }
 
-.advanced-filters {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 18px;
-  background: #f8fafc;
-  padding: 10px;
-  border-radius: 8px;
-}
+.actions-row { display: flex; gap: 8px; }
+.select-box, .search-input { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.88rem; }
+.primary-btn { background: var(--theme-primary); color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 0.85rem; }
 
-.filter-label {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: #475569;
-}
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 18px; }
+.cloth-card, .perfume-card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); }
+.card-img-wrap { position: relative; width: 100%; height: 220px; background: #f8fafc; }
+.cloth-img { width: 100%; height: 100%; object-fit: cover; }
+.badge-season { position: absolute; top: 8px; left: 8px; padding: 3px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 700; background: var(--theme-bg-soft); color: var(--theme-secondary); }
+.badge-cat { position: absolute; top: 8px; right: 8px; background: rgba(15, 23, 42, 0.75); color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.72rem; }
 
-.category-scroll-wrap {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-
-.pill-btn {
-  border: 1px solid #cbd5e1;
-  background: white;
-  padding: 6px 12px;
-  border-radius: 18px;
-  font-size: 0.82rem;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.pill-btn.active {
-  background: #0f766e;
-  color: white;
-  border-color: #0f766e;
-}
-
-.pill-btn.outline.active {
-  background: #e0f2fe;
-  color: #0369a1;
-  border-color: #38bdf8;
-}
-
-.actions-row {
-  display: flex;
-  gap: 8px;
-}
-
-.select-box, .search-input {
-  padding: 8px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 0.88rem;
-}
-
-.primary-btn {
-  background: #0f766e;
-  color: white;
-  border: none;
-  padding: 8px 14px;
-  border-radius: 6px;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-
-.cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-  gap: 18px;
-}
-
-.cloth-card, .perfume-card {
-  background: white;
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.card-img-wrap {
-  position: relative;
-  width: 100%;
-  height: 220px;
-  background: #f8fafc;
-}
-
-.cloth-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.badge-season {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 0.72rem;
-  font-weight: 700;
-}
-.badge-season.春夏 { background: #dcfce7; color: #166534; }
-.badge-season.秋冬 { background: #ffedd5; color: #9a3412; }
-.badge-season.四季 { background: #e0e7ff; color: #3730a3; }
-
-.badge-cat {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  background: rgba(15, 23, 42, 0.75);
-  color: white;
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-size: 0.72rem;
-}
-
-.card-body {
-  padding: 14px;
-}
-
-.brand-line {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 4px;
-}
-
-.brand-tag {
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #64748b;
-}
-
-.cost-per-wear {
-  font-size: 0.78rem;
-  font-weight: 800;
-  color: #0f766e;
-  background: #ccfbf1;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-.cloth-title {
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: #0f172a;
-  margin-bottom: 8px;
-}
-
-.attribute-box {
-  background: #f8fafc;
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 0.82rem;
-  margin-bottom: 10px;
-}
+.card-body { padding: 14px; }
+.brand-line { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.brand-tag { font-size: 0.75rem; font-weight: 700; color: #64748b; }
+.cost-per-wear { font-size: 0.78rem; font-weight: 800; color: var(--theme-primary); background: var(--theme-primary-light); padding: 2px 6px; border-radius: 4px; }
+.cloth-title { font-size: 1.1rem; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+.attribute-box { background: #f8fafc; border-radius: 6px; padding: 8px 10px; font-size: 0.82rem; margin-bottom: 10px; }
 .attribute-box p { margin: 2px 0; }
+.scent-advice { border-top: 1px dashed #e2e8f0; padding-top: 8px; font-size: 0.85rem; margin-bottom: 12px; }
 
-.scent-advice {
-  border-top: 1px dashed #e2e8f0;
-  padding-top: 8px;
-  font-size: 0.85rem;
-  margin-bottom: 12px;
-}
-
-.card-footer {
-  display: flex;
-  gap: 6px;
-}
-
-.wear-btn {
-  flex: 1;
-  background: #0f172a;
-  color: white;
-  border: none;
-  padding: 8px;
-  border-radius: 6px;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-
-.edit-btn {
-  background: #e2e8f0;
-  border: none;
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-}
+.card-footer { display: flex; gap: 6px; }
+.wear-btn { flex: 1; background: #0f172a; color: white; border: none; padding: 8px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 0.85rem; }
+.edit-btn { background: #e2e8f0; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; }
 
 /* ================== 彈窗多圖上傳 ================== */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 42, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.modal-box { background: white; width: 92%; max-width: 580px; padding: 20px; border-radius: 12px; max-height: 90vh; overflow-y: auto; }
 
-.modal-box {
-  background: white;
-  width: 92%;
-  max-width: 580px;
-  padding: 20px;
-  border-radius: 12px;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.upload-dropzone {
-  border: 2px dashed #cbd5e1;
-  border-radius: 8px;
-  padding: 16px;
-  text-align: center;
-  background: #f8fafc;
-  margin-bottom: 12px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.upload-dropzone.drag-active {
-  background: #e0f2fe;
-  border-color: #0ea5e9;
-}
-
+.upload-dropzone { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 16px; text-align: center; background: #f8fafc; margin-bottom: 12px; cursor: pointer; transition: all 0.2s; }
+.upload-dropzone.drag-active { background: var(--theme-primary-light); border-color: var(--theme-primary); }
 .upload-icon { font-size: 2rem; }
 
-.preview-strip {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-}
+.preview-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 8px; }
+.thumb-wrap { position: relative; flex-shrink: 0; }
+.comp-img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1; }
+.remove-btn { position: absolute; top: -6px; right: -6px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 0.7rem; cursor: pointer; }
 
-.thumb-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
-
-.comp-img {
-  width: 80px;
-  height: 80px;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid #cbd5e1;
-}
-
-.remove-btn {
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  background: #ef4444;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  font-size: 0.7rem;
+.quick-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.chips-hint { font-size: 0.8rem; font-weight: bold; width: 100%; color: var(--theme-primary); }
+.ai-chip-btn {
+  background: var(--theme-primary-light);
+  border: 1px solid var(--theme-primary);
+  color: var(--theme-primary);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: bold;
   cursor: pointer;
 }
 
-.quick-chips {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .full-width { grid-column: span 2; }
+.form-group label { display: block; font-size: 0.78rem; font-weight: 700; margin-bottom: 4px; }
+.form-group input, .form-group select { width: 100%; padding: 7px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 0.85rem; }
 
-.form-group label {
-  display: block;
-  font-size: 0.78rem;
-  font-weight: 700;
-  margin-bottom: 4px;
-}
+.modal-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.cancel-btn { background: #e2e8f0; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; }
+.save-btn { background: var(--theme-primary); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; }
 
-.form-group input, .form-group select {
-  width: 100%;
-  padding: 7px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  box-sizing: border-box;
-  font-size: 0.85rem;
-}
-
-.modal-btns {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-}
-
-.cancel-btn {
-  background: #e2e8f0;
-  border: none;
-  padding: 8px 14px;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.save-btn {
-  background: #0f766e;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-/* ================== RWD 手機版專屬優化 ================== */
+/* ================== RWD ================== */
 @media (max-width: 768px) {
-  .desktop-nav {
-    display: none;
-  }
-
-  .hamburger-btn {
-    display: flex;
-  }
-
-  .summary-strip {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .strip-divider {
-    display: none;
-  }
-
-  .category-stat-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .cards-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .full-width {
-    grid-column: span 1;
-  }
+  .desktop-nav { display: none; }
+  .hamburger-btn { display: flex; }
+  .summary-strip { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .strip-divider { display: none; }
+  .category-stat-grid { grid-template-columns: repeat(3, 1fr); }
+  .cards-grid { grid-template-columns: 1fr; }
+  .form-grid { grid-template-columns: 1fr; }
+  .full-width { grid-column: span 1; }
 }
 </style>
